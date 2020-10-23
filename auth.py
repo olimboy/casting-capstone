@@ -1,12 +1,13 @@
+import os
 import json
 from flask import request
 from functools import wraps
 from jose import jwt
 from urllib.request import urlopen
 
-AUTH0_DOMAIN = 'olimboy.us.auth0.com'
+AUTH0_DOMAIN =  os.environ['AUTH0_DOMAIN']
 ALGORITHMS = ['RS256']
-API_AUDIENCE = 'coffee_shop'
+API_AUDIENCE = os.environ['API_AUDIENCE']
 
 
 # AuthError Exception
@@ -119,9 +120,9 @@ def requires_auth(permission=''):
     def requires_auth_decorator(f):
         @wraps(f)
         def wrapper(*args, **kwargs):
-            # token = get_token_auth_header()
-            # payload = verify_decode_jwt(token)
-            # check_permissions(permission, payload)
+            token = get_token_auth_header()
+            payload = verify_decode_jwt(token)
+            check_permissions(permission, payload)
             return f(*args, **kwargs)
 
         return wrapper

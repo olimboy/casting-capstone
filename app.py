@@ -1,9 +1,12 @@
+import os
 from functools import wraps
-from flask import Flask, request, jsonify, abort
+from flask import Flask, request, jsonify, abort, redirect
 from flask_cors import CORS
+from datetime import datetime
 
-from models import db_drop_and_create_all, setup_db, Movie, Actor, Association
+from models import setup_db, Movie, Actor, Association
 from auth import AuthError, requires_auth
+from authlib.integrations.flask_client import OAuth
 
 
 # Decorator for check in request have json;
@@ -28,15 +31,50 @@ def valid_json(keys=None, func=any):
 
 
 app = Flask(__name__)
+app.secret_key = 'asdasdadadasdadasdasdadasdasdadasdsadasdadasd'
 setup_db(app)
 CORS(app)
 
+oauth = OAuth(app)
 
-# db_drop_and_create_all()
-
+auth0 = oauth.register(
+    'auth0',
+    client_id=os.environ['CLIENT_ID'],
+    client_secret=os.environ['CLIENT_SECRET'],
+    api_base_url='https://{}'.format(os.environ['AUTH0_DOMAIN']),
+    access_token_url='https://{}/oauth/token'.format(os.environ['AUTH0_DOMAIN']),
+    authorize_url='https://{}/authorize'.format(os.environ['AUTH0_DOMAIN'])
+)
 
 # ROUTES
 # Movies
+
+
+@app.route('/')
+def login():
+    login_url = 'https://{}/authorize?audience={}&response_type=token&client_id={}&redirect_uri={}'.format(
+        os.environ['AUTH0_DOMAIN'],
+        os.environ['API_AUDIENCE'],
+        os.environ['CLIENT_ID'],
+        os.environ['LOGIN_RESULTS']
+    )
+    return redirect(login_url)
+
+
+@app.route('/login-results')
+def results():
+    print(request.url)
+    print(request.__dict__)
+    return jsonify({})
+    # token = auth0.authorize_access_token()
+    # userinfo = auth0.parse_id_token(token)
+    # print(token)
+    # print(userinfo)
+    # return jsonify({
+    #     'success': True,
+    #     'token': auth0.token
+    # })
+
 
 @app.route('/movies')
 @requires_auth(permission='get:movies')
@@ -51,7 +89,11 @@ def get_movies():
 @requires_auth(permission='post:movies')
 @valid_json(keys=['title', 'release_date'], func=all)
 def create_movie(data):
-    movie = Movie(title=data['title'], release_date=data['release_date'])
+    try:
+        date = datetime.strptime(data['release_date'], '%d.%m.%Y')
+    except:
+        abort(422)
+    movie = Movie(title=data['title'], release_date=date)
     movie.insert()
     return jsonify({
         'success': True,
@@ -77,7 +119,7 @@ def update_movie(data, id):
     })
 
 
-@app.route('/drinks/<int:id>', methods=['DELETE'])
+@app.route('/movies/<int:id>', methods=['DELETE'])
 @requires_auth(permission='delete:movies')
 def delete_movie(id):
     movie = Movie.query.filter_by(id=id).one_or_none()
@@ -113,7 +155,7 @@ def create_actor(data):
 
 
 @app.route('/actors/<int:id>', methods=['PATCH'])
-@requires_auth(permission='patch:movies')
+@requires_auth(permission='patch:actors')
 @valid_json(keys=['name', 'age', 'gender'], func=any)
 def update_actor(data, id):
     actor = Actor.query.filter_by(id=id).one_or_none()
@@ -155,7 +197,13 @@ def create_movies_actors(data, id):
     if movie is None:
         abort(404)
     actors = Actor.query.filter(Actor.id.in_(data['ids'])).all()
-    movie.actors.extend([Association(actor=actor) for actor in actors])
+    associations = []
+    for actor in actors:
+        association = Association.query.filter_by(actor_id=actor.id, movie_id=movie.id).one_or_none()
+        if association is None:
+            association = Association(actor=actor, movie=movie)
+        associations.append(association)
+    movie.actors.extend(associations)
     movie.update()
     return jsonify({
         'success': True,
@@ -164,7 +212,7 @@ def create_movies_actors(data, id):
 
 
 @app.route('/movies/<int:id>/actors', methods=['DELETE'])
-@requires_auth(permission='post:movies_actors')
+@requires_auth(permission='delete:movies_actors')
 @valid_json(keys=['ids'], func=all)
 def delete_movies_actors(data, id):
     movie = Movie.query.filter_by(id=id).one_or_none()
@@ -184,11 +232,17 @@ def delete_movies_actors(data, id):
 @requires_auth(permission='post:actors_movies')
 @valid_json(keys=['ids'], func=all)
 def create_actors_movies(data, id):
-    actor = Movie.query.filter_by(id=id).one_or_none()
+    actor = Actor.query.filter_by(id=id).one_or_none()
     if actor is None:
         abort(404)
-    movies = Actor.query.filter(Actor.id.in_(data['ids'])).all()
-    actor.movies.extend([Association(movie=movie) for movie in movies])
+    movies = Movie.query.filter(Movie.id.in_(data['ids'])).all()
+    associations = []
+    for movie in movies:
+        association = Association.query.filter_by(actor_id=actor.id, movie_id=movie.id).one_or_none()
+        if association is None:
+            association = Association(actor=actor, movie=movie)
+        associations.append(association)
+    actor.movies.extend(associations)
     actor.update()
     return jsonify({
         'success': True,
@@ -197,7 +251,7 @@ def create_actors_movies(data, id):
 
 
 @app.route('/actors/<int:id>/movies', methods=['DELETE'])
-@requires_auth(permission='post:actors_movies')
+@requires_auth(permission='delete:actors_movies')
 @valid_json(keys=['ids'], func=all)
 def delete_actors_movies(data, id):
     actor = Actor.query.filter_by(id=id).one_or_none()

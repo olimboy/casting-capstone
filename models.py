@@ -2,9 +2,8 @@ import os
 from sqlalchemy import Column, String, Integer, Date, ForeignKey
 from flask_sqlalchemy import SQLAlchemy
 
-database_filename = "database.db"
-project_dir = os.path.dirname(os.path.abspath(__file__))
-database_path = "sqlite:///{}".format(os.path.join(project_dir, database_filename))
+database_name = "casting"
+database_path = "postgresql://{}:{}@{}/{}".format('postgres', 'constant98', 'localhost:5432', database_name)
 
 db = SQLAlchemy()
 
@@ -49,13 +48,6 @@ class Association(db.Model):
 
     def update(self):
         db.session.commit()
-
-
-#
-# association_table = Table('association', db.Model.metadata,
-#                           Column('movie_id', Integer, ForeignKey('movies.id')),
-#                           Column('actor_id', Integer, ForeignKey('actors.id'))
-#                           )
 
 
 class Movie(db.Model):
