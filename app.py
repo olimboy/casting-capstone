@@ -6,7 +6,6 @@ from datetime import datetime
 
 from models import setup_db, Movie, Actor, Association
 from auth import AuthError, requires_auth
-from authlib.integrations.flask_client import OAuth
 
 
 # Decorator for check in request have json;
@@ -31,20 +30,9 @@ def valid_json(keys=None, func=any):
 
 
 app = Flask(__name__)
-app.secret_key = 'asdasdadadasdadasdasdadasdasdadasdsadasdadasd'
 setup_db(app)
 CORS(app)
 
-oauth = OAuth(app)
-
-auth0 = oauth.register(
-    'auth0',
-    client_id=os.environ['CLIENT_ID'],
-    client_secret=os.environ['CLIENT_SECRET'],
-    api_base_url='https://{}'.format(os.environ['AUTH0_DOMAIN']),
-    access_token_url='https://{}/oauth/token'.format(os.environ['AUTH0_DOMAIN']),
-    authorize_url='https://{}/authorize'.format(os.environ['AUTH0_DOMAIN'])
-)
 
 # ROUTES
 # Movies
@@ -63,17 +51,7 @@ def login():
 
 @app.route('/login-results')
 def results():
-    print(request.url)
-    print(request.__dict__)
     return jsonify({})
-    # token = auth0.authorize_access_token()
-    # userinfo = auth0.parse_id_token(token)
-    # print(token)
-    # print(userinfo)
-    # return jsonify({
-    #     'success': True,
-    #     'token': auth0.token
-    # })
 
 
 @app.route('/movies')
@@ -284,17 +262,6 @@ def not_found(error):
             "message": "Resource not found"
         }
     }), 404
-
-
-@app.errorhandler(409)
-def conflict(error):
-    return jsonify({
-        "success": False,
-        "error": {
-            "code": 409,
-            "message": "Data already have in db"
-        }
-    }), 409
 
 
 @app.errorhandler(415)
